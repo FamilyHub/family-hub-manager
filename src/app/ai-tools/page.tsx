@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
+
 interface AITool {
   name: string;
   description: string;
