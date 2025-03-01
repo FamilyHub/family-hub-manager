@@ -1,0 +1,15 @@
+export const styles = {
+  container: 'relative h-screen w-full overflow-hidden bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-800',
+  backgroundGrid: 'absolute inset-0 bg-center opacity-20',
+  content: 'relative z-10 flex items-center justify-center h-full',
+  contentWrapper: 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8',
+  title: 'text-5xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300',
+  subtitle: 'text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto',
+  buttonContainer: 'flex flex-col sm:flex-row gap-4 justify-center items-center mt-8',
+  primaryButton: 'px-8 py-3 text-lg font-semibold rounded-full bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300 transform hover:-translate-y-1',
+  secondaryButton: 'px-8 py-3 text-lg font-semibold rounded-full border-2 border-purple-400 text-purple-300 hover:bg-purple-400/10 transition-all duration-300',
+  featureGrid: 'grid grid-cols-1 md:grid-cols-3 gap-6 mt-16',
+  featureCard: 'p-6 rounded-2xl bg-white/5 backdrop-blur-lg',
+  featureTitle: 'text-xl font-semibold text-purple-300 mb-2',
+  featureDescription: 'text-gray-400',
+} as const;
