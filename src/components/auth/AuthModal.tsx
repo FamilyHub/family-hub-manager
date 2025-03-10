@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
+import { setAuthToken } from '@/utils/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -17,20 +18,74 @@ interface FormData {
   password: string;
   confirmPassword?: string;
   name?: string;
+  familyName?: string;
+  mobileNumber?: string;
+  otp?: string;
+  emailOrMobile?: string;
+}
+
+interface SignupPayload {
+  userId: string;
+  name: string;
+  familyName: string;
+  email: string;
+  password: string;
+  userLevel: string;
+  roleTypes: string[];
+  customFields: any[];
+}
+
+interface LoginResponse {
+  token: string;
+  user: {
+    email: string;
+    name: string;
+    familyName: string;
+  };
+  message: string;
+  success: boolean;
+}
+
+interface OtpGeneratePayload {
+  type: 'EMAIL' | 'MOBILE';
+  email: string | null;
+  mobileNumber: string | null;
+}
+
+interface OtpResponse {
+  token: string | null;
+  user: any | null;
+  message: string;
+  success: boolean;
+}
+
+interface OtpValidatePayload {
+  type: 'EMAIL' | 'MOBILE';
+  email: string | null;
+  mobileNumber: string | null;
+  otp: string;
 }
 
 const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) => {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpType, setOtpType] = useState<'EMAIL' | 'MOBILE'>('EMAIL');
   const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
     confirmPassword: '',
     name: '',
+    familyName: '',
+    mobileNumber: '',
+    otp: '',
+    emailOrMobile: '',
   });
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -40,57 +95,271 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
     setMode(initialMode);
   }, [initialMode]);
 
-  const validateForm = () => {
-    const newErrors: Partial<FormData> = {};
-    
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email format is invalid';
-    }
+  // Reset function to clear all states
+  const resetForm = () => {
+    setFormData({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      name: '',
+      familyName: '',
+      mobileNumber: '',
+      otp: '',
+      emailOrMobile: '',
+    });
+    setErrors({});
+    setSuccessMessage(null);
+    setOtpSent(false);
+    setLoginMethod('password');
+    setOtpType('EMAIL');
+    setIsLoading(false);
+  };
 
-    if (formData.password && formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
+  // Handle modal close
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
-    if (mode === 'signup' && formData.confirmPassword && formData.confirmPassword !== formData.password) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
+  const generateUserId = () => {
+    // Generate a random 8-character alphanumeric string
+    return Math.random().toString(36).substring(2, 10);
+  };
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleLogin = async () => {
+    const loginPayload = {
+      email: formData.email,
+      password: formData.password
+    };
+
+    console.log('Attempting login with payload:', loginPayload);
+
+    try {
+      // Add timestamp to URL to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await fetch(`http://localhost:8080/api/auth/login?_=${timestamp}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify(loginPayload),
+      });
+
+      console.log('Login response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Login error:', errorData);
+        throw new Error(errorData.message || 'Login failed');
+      }
+
+      const data: LoginResponse = await response.json();
+      console.log('Login successful:', data);
+      
+      if (data.success && data.token) {
+        // Use the utility function to store the token
+        setAuthToken(data.token);
+        // Store user data if needed
+        localStorage.setItem('userData', JSON.stringify(data.user));
+        return data;
+      } else {
+        throw new Error(data.message || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const isValidEmail = (value: string) => {
+    return /\S+@\S+\.\S+/.test(value);
+  };
+
+  const isValidMobileNumber = (value: string) => {
+    return /^\d{10}$/.test(value);
+  };
+
+  const handleOtpGenerate = async () => {
+    try {
+      setIsLoading(true);
+      setSuccessMessage(null);
+      setErrors({});
+      
+      const inputValue = formData.emailOrMobile?.trim() || '';
+      let payload: OtpGeneratePayload;
+
+      if (isValidEmail(inputValue)) {
+        payload = {
+          type: 'EMAIL',
+          email: inputValue,
+          mobileNumber: null
+        };
+        setOtpType('EMAIL');
+      } else if (isValidMobileNumber(inputValue)) {
+        payload = {
+          type: 'MOBILE',
+          email: null,
+          mobileNumber: inputValue
+        };
+        setOtpType('MOBILE');
+      } else {
+        throw new Error('Please enter a valid email or 10-digit mobile number');
+      }
+
+      console.log('Generating OTP with payload:', payload);
+
+      const response = await fetch('http://localhost:8080/api/auth/otp/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data: OtpResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate OTP');
+      }
+
+      if (data.success) {
+        setOtpSent(true);
+        setSuccessMessage(data.message);
+      } else {
+        throw new Error(data.message || 'Failed to generate OTP');
+      }
+    } catch (error) {
+      console.error('OTP generation error:', error);
+      setErrors({
+        emailOrMobile: error instanceof Error ? error.message : 'Failed to generate OTP'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpValidate = async () => {
+    try {
+      setIsLoading(true);
+      setErrors({});
+
+      const emailOrMobile = formData.emailOrMobile || '';
+      
+      const payload: OtpValidatePayload = {
+        type: otpType,
+        email: otpType === 'EMAIL' ? emailOrMobile : null,
+        mobileNumber: otpType === 'MOBILE' ? emailOrMobile : null,
+        otp: formData.otp || ''
+      };
+
+      console.log('Validating OTP with payload:', payload);
+
+      const response = await fetch('http://localhost:8080/api/auth/otp/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data: LoginResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'OTP validation failed');
+      }
+
+      if (data.success && data.token) {
+        // Store the token
+        setAuthToken(data.token);
+        onClose();
+        router.push('/home');
+      } else {
+        throw new Error(data.message || 'OTP validation failed');
+      }
+    } catch (error) {
+      console.error('OTP validation error:', error);
+      setErrors({
+        otp: error instanceof Error ? error.message : 'OTP validation failed'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted, mode:', mode);
     
-    // Skip validation if all fields are empty
-    if (!formData.email && !formData.password && (!formData.name || mode === 'login') && (!formData.confirmPassword || mode === 'login')) {
-      setIsLoading(true);
-      try {
-        // TODO: Implement actual authentication logic here
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulated API call
-        onClose();
-        router.push('/home'); // Updated path to match the app directory structure
-      } catch (error) {
-        console.error('Authentication error:', error);
-        setErrors({ email: 'Authentication failed. Please try again.' });
-      } finally {
-        setIsLoading(false);
-      }
+    if (!validateForm()) {
+      console.log('Form validation failed');
       return;
     }
 
-    // Only validate if any field has data
-    if (!validateForm()) return;
-
     setIsLoading(true);
     try {
-      // TODO: Implement actual authentication logic here
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulated API call
-      onClose();
-      router.push('/home'); // Updated path to match the app directory structure
+      if (mode === 'signup') {
+        const signupPayload: SignupPayload = {
+          userId: generateUserId(),
+          name: formData.name || '',
+          familyName: formData.familyName || '',
+          email: formData.email,
+          password: formData.password,
+          userLevel: 'ADMIN',
+          roleTypes: ['ROLE_USER', 'ROLE_ADMIN'],
+          customFields: []
+        };
+
+        console.log('Attempting signup with payload:', signupPayload);
+
+        const response = await fetch('http://localhost:8080/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          credentials: 'include',
+          cache: 'no-store',
+          body: JSON.stringify(signupPayload),
+        });
+
+        console.log('Signup response status:', response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Signup error:', errorData);
+          throw new Error(errorData.message || 'Failed to create account');
+        }
+
+        const data = await response.json();
+        console.log('Signup successful:', data);
+        // After successful signup, automatically log in
+        await handleLogin();
+        onClose();
+        router.push('/home');
+      } else {
+        // Handle login
+        if (loginMethod === 'password') {
+          await handleLogin();
+        } else {
+          await handleOtpValidate();
+        }
+        onClose();
+        router.push('/home');
+      }
     } catch (error) {
       console.error('Authentication error:', error);
-      setErrors({ email: 'Authentication failed. Please try again.' });
+      setErrors({ 
+        [loginMethod === 'password' ? 'email' : 'otp']: error instanceof Error ? error.message : 'Authentication failed. Please try again.' 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -110,16 +379,70 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
     setErrors({});
   };
 
+  const validateForm = () => {
+    const newErrors: Partial<FormData> = {};
+    
+    if (mode === 'signup') {
+      if (!formData.name) {
+        newErrors.name = 'Name is required';
+      }
+      
+      if (!formData.familyName) {
+        newErrors.familyName = 'Family name is required';
+      }
+
+      if (!formData.email) {
+        newErrors.email = 'Email is required';
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = 'Email format is invalid';
+      }
+
+      if (!formData.password) {
+        newErrors.password = 'Password is required';
+      } else if (formData.password.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters';
+      }
+
+      if (formData.confirmPassword !== formData.password) {
+        newErrors.confirmPassword = 'Passwords do not match';
+      }
+    } else {
+      if (loginMethod === 'password') {
+        if (!formData.email) {
+          newErrors.email = 'Email is required';
+        }
+        if (!formData.password) {
+          newErrors.password = 'Password is required';
+        }
+      } else if (loginMethod === 'otp') {
+        if (!formData.emailOrMobile) {
+          newErrors.emailOrMobile = 'Email or mobile number is required';
+        } else {
+          const value = formData.emailOrMobile.trim();
+          if (!isValidEmail(value) && !isValidMobileNumber(value)) {
+            newErrors.emailOrMobile = 'Please enter a valid email or 10-digit mobile number';
+          }
+        }
+        if (otpSent && !formData.otp) {
+          newErrors.otp = 'OTP is required';
+        }
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   if (!mounted) return null;
 
   return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
 
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 p-6 text-left align-middle shadow-xl transition-all border border-gray-700">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
           >
             <XMarkIcon className="h-6 w-6" />
@@ -133,103 +456,235 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
           </Dialog.Title>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {mode === 'signup' && (
-              <div className="group">
-                <label htmlFor="name" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.name ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                  }`}
-                  placeholder="Enter your name"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-                )}
+            {mode === 'login' && (
+              <div className="mb-6">
+                <div className="flex justify-center space-x-4 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginMethod('password');
+                      setOtpSent(false);
+                      setErrors({});
+                    }}
+                    className={`px-4 py-2 rounded-lg transition-all ${
+                      loginMethod === 'password'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginMethod('otp');
+                      setOtpSent(false);
+                      setErrors({});
+                    }}
+                    className={`px-4 py-2 rounded-lg transition-all ${
+                      loginMethod === 'otp'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    OTP
+                  </button>
+                </div>
               </div>
             )}
 
-            <div className="group">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                  errors.email ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                }`}
-                placeholder="Enter your email"
-              />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-400">{errors.email}</p>
-              )}
-            </div>
-
-            <div className="group">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                  errors.password ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                }`}
-                placeholder="Enter your password"
-              />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-400">{errors.password}</p>
-              )}
-            </div>
-
             {mode === 'signup' && (
-              <div className="group">
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                  }`}
-                  placeholder="Confirm your password"
-                />
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-400">{errors.confirmPassword}</p>
+              <>
+                <div className="group">
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                      errors.name ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                    }`}
+                    placeholder="Enter your name"
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                  )}
+                </div>
+
+                <div className="group">
+                  <label htmlFor="familyName" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                    Family Name
+                  </label>
+                  <input
+                    type="text"
+                    id="familyName"
+                    name="familyName"
+                    value={formData.familyName}
+                    onChange={handleInputChange}
+                    className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                      errors.familyName ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                    }`}
+                    placeholder="Enter your family name"
+                  />
+                  {errors.familyName && (
+                    <p className="mt-1 text-sm text-red-400">{errors.familyName}</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {mode === 'login' && (
+              <>
+                {loginMethod === 'password' ? (
+                  <>
+                    <div className="group">
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          errors.email ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                        }`}
+                        placeholder="Enter your email"
+                      />
+                      {errors.email && (
+                        <p className="mt-1 text-sm text-red-400">{errors.email}</p>
+                      )}
+                    </div>
+
+                    <div className="group">
+                      <label htmlFor="password" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                        Password
+                      </label>
+                      <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          errors.password ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                        }`}
+                        placeholder="Enter your password"
+                      />
+                      {errors.password && (
+                        <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="group">
+                      <label htmlFor="emailOrMobile" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                        Email or Mobile Number
+                      </label>
+                      <input
+                        type="text"
+                        id="emailOrMobile"
+                        name="emailOrMobile"
+                        value={formData.emailOrMobile}
+                        onChange={handleInputChange}
+                        className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          errors.emailOrMobile ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                        }`}
+                        placeholder="Enter email or mobile number"
+                        disabled={otpSent}
+                      />
+                      {errors.emailOrMobile && (
+                        <p className="mt-1 text-sm text-red-400">{errors.emailOrMobile}</p>
+                      )}
+                    </div>
+
+                    {successMessage && (
+                      <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4">
+                        <p className="text-sm text-green-400">{successMessage}</p>
+                      </div>
+                    )}
+
+                    {!otpSent ? (
+                      <motion.button
+                        type="button"
+                        onClick={handleOtpGenerate}
+                        disabled={isLoading}
+                        whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                        whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                        className="w-full py-3 px-4 rounded-lg font-semibold text-white shadow-lg transition-all
+                          bg-gradient-to-r from-purple-600 via-pink-600 to-red-600
+                          hover:from-purple-500 hover:via-pink-500 hover:to-red-500
+                          disabled:opacity-50 disabled:cursor-not-allowed
+                          cursor-pointer"
+                      >
+                        {isLoading ? (
+                          <span className="flex items-center justify-center">
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Sending OTP...
+                          </span>
+                        ) : (
+                          'Get OTP'
+                        )}
+                      </motion.button>
+                    ) : (
+                      <>
+                        <div className="group">
+                          <label htmlFor="otp" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                            Enter OTP
+                          </label>
+                          <input
+                            type="text"
+                            id="otp"
+                            name="otp"
+                            value={formData.otp}
+                            onChange={handleInputChange}
+                            className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                              errors.otp ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                            }`}
+                            placeholder="Enter OTP"
+                          />
+                          {errors.otp && (
+                            <p className="mt-1 text-sm text-red-400">{errors.otp}</p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOtpSent(false);
+                            setSuccessMessage(null);
+                            setFormData(prev => ({ ...prev, otp: '' }));
+                          }}
+                          className="w-full text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                        >
+                          Change Email/Mobile Number
+                        </button>
+                      </>
+                    )}
+                  </>
                 )}
-              </div>
+              </>
             )}
 
             <motion.button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (loginMethod === 'otp' && !otpSent)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className={`w-full py-3 px-4 rounded-lg font-semibold text-white shadow-lg transition-all
                 relative overflow-hidden group
-                ${isLoading ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}
+                ${(isLoading || (loginMethod === 'otp' && !otpSent)) ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}
                 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600
-                hover:from-purple-500 hover:via-pink-500 hover:to-red-500
-                focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900`}
+                hover:from-purple-500 hover:via-pink-500 hover:to-red-500`}
             >
-              <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:translate-x-full transition-transform duration-500" />
               {isLoading ? (
                 <span className="flex items-center justify-center">
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -238,7 +693,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
                   </svg>
                   Processing...
                 </span>
-              ) : mode === 'login' ? 'Sign In' : 'Create Account'}
+              ) : mode === 'login' ? (loginMethod === 'password' ? 'Sign In' : 'Verify OTP') : 'Create Account'}
             </motion.button>
 
             <div className="relative">
