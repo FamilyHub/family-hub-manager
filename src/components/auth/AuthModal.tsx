@@ -352,7 +352,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
         } else {
           await handleOtpValidate();
         }
-        onClose();
+      onClose();
         router.push('/home');
       }
     } catch (error) {
@@ -495,25 +495,25 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
 
             {mode === 'signup' && (
               <>
-                <div className="group">
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                      errors.name ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                    }`}
-                    placeholder="Enter your name"
-                  />
-                  {errors.name && (
-                    <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-                  )}
-                </div>
+              <div className="group">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                    errors.name ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                  }`}
+                  placeholder="Enter your name"
+                />
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                )}
+              </div>
 
                 <div className="group">
                   <label htmlFor="familyName" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
@@ -541,45 +541,45 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
               <>
                 {loginMethod === 'password' ? (
                   <>
-                    <div className="group">
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                          errors.email ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                        }`}
-                        placeholder="Enter your email"
-                      />
-                      {errors.email && (
-                        <p className="mt-1 text-sm text-red-400">{errors.email}</p>
-                      )}
-                    </div>
+            <div className="group">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                  errors.email ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                }`}
+                placeholder="Enter your email"
+              />
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-400">{errors.email}</p>
+              )}
+            </div>
 
-                    <div className="group">
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
-                        Password
-                      </label>
-                      <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
-                          errors.password ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
-                        }`}
-                        placeholder="Enter your password"
-                      />
-                      {errors.password && (
-                        <p className="mt-1 text-sm text-red-400">{errors.password}</p>
-                      )}
-                    </div>
+            <div className="group">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                  errors.password ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
+                }`}
+                placeholder="Enter your password"
+              />
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-400">{errors.password}</p>
+              )}
+            </div>
                   </>
                 ) : (
                   <>
@@ -637,17 +637,17 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
                       </motion.button>
                     ) : (
                       <>
-                        <div className="group">
+              <div className="group">
                           <label htmlFor="otp" className="block text-sm font-medium text-gray-300 group-focus-within:text-purple-400 transition-colors">
                             Enter OTP
-                          </label>
-                          <input
+                </label>
+                <input
                             type="text"
                             id="otp"
                             name="otp"
                             value={formData.otp}
-                            onChange={handleInputChange}
-                            className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                  onChange={handleInputChange}
+                  className={`mt-1 block w-full px-4 py-3 bg-gray-800/50 border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
                               errors.otp ? 'border-red-500' : 'border-gray-600 hover:border-gray-500'
                             }`}
                             placeholder="Enter OTP"

@@ -1,102 +1,145 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Bell, Search, Plus, User, LogOut, UserPlus } from 'lucide-react';
+import { getUserLevel } from '@/utils/auth';
+import { useRouter } from 'next/navigation';
+import { removeAuthToken } from '@/utils/auth';
 
 export default function TopBar() {
+  const router = useRouter();
+  const [userLevel, setUserLevel] = useState<string>('USER');
+  const [isLoading, setIsLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const fetchUserLevel = async () => {
+      try {
+        const level = await getUserLevel();
+        console.log('Fetched user level:', level);
+        setUserLevel(level);
+      } catch (error) {
+        console.error('Error fetching user level:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserLevel();
+  }, []);
+
+  const handleLogout = () => {
+    removeAuthToken();
+    router.push('/login');
+  };
+
+  // Don't render anything until after hydration
+  if (!mounted) {
+    return null;
+  }
 
   return (
-    <motion.div
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="h-16 bg-[#2B0B3F]/50 backdrop-blur-xl border-b border-white/10 fixed top-0 right-0 left-[240px] z-10"
-    >
-      <div className="h-full px-6 flex items-center justify-between">
-        {/* Search */}
-        <div className="flex-1 max-w-xl">
+    <div className="fixed top-0 right-0 left-0 z-50 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-gray-700">
+      <div className="flex items-center justify-between h-16 px-6">
+        {/* Search Bar */}
+        <div className="flex-1 max-w-md">
           <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Search..."
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:border-[#FF3366]"
+              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400 text-sm"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2">🔍</span>
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Right Section */}
         <div className="flex items-center space-x-4">
+          {/* Add New Member Button - Only for ADMIN */}
+          {!isLoading && userLevel === 'ADMIN' && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-lg shadow-blue-500/20"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add New Member
+            </motion.button>
+          )}
+
           {/* Notifications */}
-          <motion.div className="relative">
+          <div className="relative">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-white/80 hover:text-white"
+              className="p-2 text-gray-300 hover:text-white transition-colors"
             >
-              🔔
-              <span className="absolute top-0 right-0 w-2 h-2 bg-[#FF3366] rounded-full" />
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
             </motion.button>
-            
-            {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 mt-2 w-80 bg-[#2B0B3F] border border-white/10 rounded-lg shadow-xl"
-              >
-                <div className="p-4">
-                  <h3 className="text-white font-semibold mb-2">Notifications</h3>
-                  <div className="space-y-2">
-                    <div className="p-2 hover:bg-white/5 rounded">
-                      <p className="text-white/80 text-sm">New expense added by Mom</p>
-                      <p className="text-white/40 text-xs">2 minutes ago</p>
-                    </div>
-                    <div className="p-2 hover:bg-white/5 rounded">
-                      <p className="text-white/80 text-sm">Task completed by Dad</p>
-                      <p className="text-white/40 text-xs">1 hour ago</p>
+
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700"
+                >
+                  <div className="p-4">
+                    <h3 className="font-medium text-white mb-2 text-sm">Notifications</h3>
+                    <div className="space-y-2">
+                      <div className="p-3 bg-gray-700/50 rounded-lg">
+                        <p className="text-sm text-gray-300">No new notifications</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Profile */}
-          <motion.div className="relative">
+          <div className="relative">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowProfile(!showProfile)}
-              className="flex items-center space-x-2 p-2 text-white/80 hover:text-white"
+              className="flex items-center space-x-2 p-2 text-gray-300 hover:text-white transition-colors"
             >
-              <span>👤</span>
-              <span>John Doe</span>
+              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <User className="w-4 h-4 text-blue-400" />
+              </div>
             </motion.button>
 
-            {showProfile && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute right-0 mt-2 w-48 bg-[#2B0B3F] border border-white/10 rounded-lg shadow-xl"
-              >
-                <div className="py-1">
-                  <button className="block w-full px-4 py-2 text-left text-white/80 hover:text-white hover:bg-white/5">
-                    Profile Settings
-                  </button>
-                  <button className="block w-full px-4 py-2 text-left text-white/80 hover:text-white hover:bg-white/5">
-                    Family Settings
-                  </button>
-                  <button className="block w-full px-4 py-2 text-left text-[#FF3366] hover:bg-white/5">
-                    Sign Out
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
+            <AnimatePresence>
+              {showProfile && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700"
+                >
+                  <div className="p-2">
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
